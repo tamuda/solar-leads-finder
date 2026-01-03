@@ -1,0 +1,104 @@
+[
+  {
+    "address": "121 Driving Park Ave, Rochester, NY 14613",
+    "building_type": "industrial",
+    "business_name": "Greater Harvest Church",
+    "notes": "Large Church Seed"
+  },
+  {
+    "address": "440 East Ave, Rochester, NY 14607",
+    "building_type": "industrial",
+    "business_name": "Grace Road Church",
+    "notes": "Large Church Seed"
+  },
+  {
+    "address": "907 E. Ferry Street, Buffalo, NY",
+    "building_type": "industrial",
+    "business_name": "True Bethel Baptist Church",
+    "notes": "Large Church Seed"
+  },
+  {
+    "address": "212 Stanislaus St, Buffalo, NY",
+    "building_type": "industrial",
+    "business_name": "St. Adalbert Catholic Basilica",
+    "notes": "Large Church Seed"
+  },
+  {
+    "address": "927 Park Avenue, Syracuse, NY",
+    "building_type": "industrial",
+    "business_name": "Basilica of the Sacred Heart of Jesus",
+    "notes": "Large Church Seed"
+  },
+  {
+    "address": "7000 All Nations Blvd, East Syracuse, NY 13057",
+    "building_type": "industrial",
+    "business_name": "Abundant Life Church",
+    "notes": "Large Church Seed"
+  },
+  {
+    "address": "125 Eagle Street, Albany, NY 12202",
+    "building_type": "industrial",
+    "business_name": "Cathedral of the Immaculate Conception",
+    "notes": "Large Church Seed"
+  },
+  {
+    "address": "354 Whitney Street, Rochester, NY",
+    "building_type": "warehouse",
+    "business_name": "Lumina Industrial Park",
+    "notes": "Industrial Seed"
+  },
+  {
+    "address": "25 Excel Drive, Rochester, NY",
+    "building_type": "warehouse",
+    "business_name": "Excel Industrial Park West",
+    "notes": "Industrial Seed"
+  },
+  {
+    "address": "24 Industrial Park Circle, Rochester, NY 14624",
+    "building_type": "warehouse",
+    "business_name": "Industrial Park Circle",
+    "notes": "Industrial Seed"
+  },
+  {
+    "address": "2800 Hamburg Turnpike, Buffalo, NY 14218",
+    "building_type": "industrial",
+    "business_name": "Steelworks Industrial Park",
+    "notes": "Industrial Seed"
+  },
+  {
+    "address": "575 Kennedy Road, Cheektowaga, NY 14227",
+    "building_type": "warehouse",
+    "business_name": "Kennedy Industrial Park",
+    "notes": "Industrial Seed"
+  },
+  {
+    "address": "5171 Route 31, Town of Clay, NY 13041",
+    "building_type": "warehouse",
+    "business_name": "White Pine Commerce Park",
+    "notes": "Industrial Seed"
+  },
+  {
+    "address": "300 Great Oaks Blvd, Albany, NY 12203",
+    "building_type": "warehouse",
+    "business_name": "Northeast Industrial Park",
+    "notes": "Industrial Seed"
+  },
+  {
+    "address": "4253 Albany St, Albany, NY 12205",
+    "building_type": "warehouse",
+    "business_name": "Albany Street Industrial Park",
+    "notes": "Industrial Seed"
+  },
+  {
+    "address": "1200 William Street, Buffalo, NY 14240",
+    "building_type": "warehouse",
+    "business_name": "Buffalo P&DC (USPS)",
+    "notes": "Distribution Center Seed"
+  },
+  {
+    "address": "1335 Jefferson Rd, Rochester, NY 14692",
+    "building_type": "warehouse",
+    "business_name": "Rochester Main Post Office",
+    "notes": "Distribution Center Seed"
+  }
+]

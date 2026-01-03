@@ -138,11 +138,13 @@ class PlacesEnricher:
                 'locationbias': f'circle:50@{lat},{lng}',
                 'key': self.api_key
             }
-            res = requests.get(find_url, params=find_params, timeout=10).json()
-            for cand in res.get('candidates', []):
-                if not self.is_generic_name(cand.get('name'), address):
-                    logger.info(f"Waterfall Stage 0 [Landmark] Success: '{cand.get('name')}'")
-                    return cand
+            try:
+                res = requests.get(find_url, params=find_params, timeout=10).json()
+                for cand in res.get('candidates', []):
+                    if not self.is_generic_name(cand.get('name'), address):
+                        logger.info(f"Waterfall Stage 0 [Landmark] Success: '{cand.get('name')}'")
+                        return cand
+            except: pass
 
         # Strategy 1: Targeted findplacefromtext (Current Address)
         # -----------------------------------------------------------------
@@ -203,6 +205,25 @@ class PlacesEnricher:
         except Exception as e:
             logger.error(f"Waterfall Enrichment Error: {e}")
             return None
+
+    def text_search(self, query: str, location: Optional[Tuple[float, float]] = None, radius: int = 5000) -> List[Dict]:
+        """Perform a broad text search for businesses"""
+        url = f"{self.base_url}/textsearch/json"
+        params = {
+            'query': query,
+            'key': self.api_key
+        }
+        if location:
+            params['location'] = f"{location[0]},{location[1]}"
+            params['radius'] = radius
+            
+        try:
+            response = requests.get(url, params=params, timeout=15)
+            data = response.json()
+            return data.get('results', [])
+        except Exception as e:
+            logger.error(f"Text search error for '{query}': {e}")
+            return []
 
     def get_place_details(self, place_id: str) -> Optional[Dict]:
         """Get detailed place information"""

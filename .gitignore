@@ -41,13 +41,13 @@ ENV/
 
 # Firebase credentials
 config/firebase-credentials.json
-config/*.json
-!config/schema.json
+!config/*.json
 
 # Data files
 data/raw/*
 data/output/*
 !data/raw/.gitkeep
+!data/raw/high_value_seeds.json
 !data/output/.gitkeep
 
 # Logs

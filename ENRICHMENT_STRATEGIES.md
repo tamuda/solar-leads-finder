@@ -97,3 +97,56 @@ Leads are scored on a scale of 0-100 following a weighted analytical model:
 ### Configuration Metrics:
 * **Proxy Conversion**: 17.5 sqft/panel @ 70% roof efficiency factor.
 * **Baseline Score**: 12 pts for non-priority buildings in the system.
+
+---
+
+## 🛠️ The Search Query Toolbox
+
+This section documents the specific queries that have been tested, categorized by their reliability and performance.
+
+### 🗺️ OpenStreetMap (Overpass API) - Discovery Phase
+
+#### ✅ WHAT WORKS (Reliable)
+*   **Strategy: Bounding Box (Bbox) Search**
+    *   **Logic**: Uses explicit coordinates `(south, west, north, east)` to define a search area. This avoids timeouts and geographical ambiguity.
+    *   **Working Query Template**:
+        ```overpass
+        [out:json][timeout:90];
+        (
+          way["building"~"industrial|warehouse|factory|manufacturing|storage|cold_storage"]({{bbox}});
+          way["amenity"~"place_of_worship"]({{bbox}});
+          way["shop"~"car|car_repair"]({{bbox}});
+        );
+        out center body;
+        ```
+    *   **Why it works**: Extremely fast (usually < 2s), targets specific ICP types, and doesn't rely on the "Area" server which is often overloaded.
+
+#### ⚠️ WHAT IS RISKY (Unreliable)
+*   **Strategy: Named Area Search**
+    *   **Logic**: `area[name="Rochester"]->.searchArea;`
+    *   **Failure Mode**: Often causes **504 Gateway Timeouts** because the server has to resolve complex city boundaries.
+    *   **Ambiguity**: Searching for "Rochester" without a state filter catches results in Minnesota and New York simultaneously.
+    *   **Fix**: Added `["addr:state"="NY"]` filter, but Bbox remains the superior method for production.
+
+---
+
+### 🏢 Google Places API - Enrichment Phase
+
+#### ✅ WHAT WORKS (The "Waterfall")
+*   **Stage 1: Address + Location Bias**
+    *   `findplacefromtext?input=[Address]&inputtype=textquery&locationbias=circle:100@[Lat,Lng]`
+    *   **Best for**: Single-tenant industrial buildings.
+*   **Stage 2: Landmark Keywords**
+    *   Adding keywords like `Plaza`, `Tower`, or `Center` to the address.
+    *   **Best for**: Multi-tenant office buildings and downtown commercial hubs.
+*   **Stage 3: Proximity Fallback**
+    *   `nearbysearch?location=[Lat,Lng]&radius=30&type=establishment`
+    *   **Best for**: When the exact address yields no business profile.
+
+#### ❌ WHAT FAILS (Deprecated)
+*   **Strategy: Broad Keyword Searches**
+    *   Searching for `industrial at [Address]` without a specific coordinate bias.
+    *   **Result**: Often returns the city's "Industrial District" center point rather than the specific building.
+*   **Strategy: High-Radius Nearby Search**
+    *   Using a radius > 100m.
+    *   **Result**: Too much "noise" (neighboring businesses) makes it impossible to know which business is actually inside the target footprint.

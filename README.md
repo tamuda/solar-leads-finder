@@ -82,31 +82,28 @@ cp .env.example .env
 
 ## Usage
 
-### 1. Data Ingestion
+### 1. Targeted ICP Discovery
+This is the recommended way to find new high-priority leads (Churches, Warehouses, Industrial).
 
 ```bash
-# Ingest assessor data
-python src/ingestion/ingest_assessor.py --county monroe --state ny
+# Run the discovery tool for Upstate NY cities
+./venv/bin/python src/discovery/run_discovery.py
+```
+This script uses precise geospatial bounding boxes to fetch buildings from OSM, enriches them with Google Places/Solar data, and merges them into your central dashboard.
 
-# Ingest OpenStreetMap buildings
-python src/ingestion/ingest_osm.py --region "Upstate New York"
+### 2. Manual Data Ingestion (Legacy)
 
-# Ingest business data
-python src/ingestion/ingest_business.py --state ny
+```bash
+# Ingest OpenStreetMap buildings by area name
+python src/ingestion/ingest_osm.py
 ```
 
-### 2. Data Processing
+### 3. Data Processing & Scoring
+For a detailed breakdown of how leads are identified and scored, see [ENRICHMENT_STRATEGIES.md](./ENRICHMENT_STRATEGIES.md).
 
 ```bash
-# Process and normalize all data
-python src/processing/process_pipeline.py
-```
-
-### 3. Generate Leads
-
-```bash
-# Generate ranked lead list
-python src/scoring/generate_leads.py --output data/output/solar_leads.csv --top 500
+# Enrich and score existing raw data
+python src/enrichment/enrich_data.py
 ```
 
 ## Data Schema
