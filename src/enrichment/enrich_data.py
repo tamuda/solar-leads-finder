@@ -25,6 +25,40 @@ from src.storage.local_storage import local_storage
 GOOGLE_PLACES_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY", "YOUR_API_KEY_HERE")
 SOLAR_API_BASE = "https://solar.googleapis.com/v1"
 
+# ICP Configuration (Ideal Customer Profile)
+ICP_BUCKETS = {
+    "TIER_1_INDUSTRIAL": {
+        "keywords": ["manufacturing", "industrial", "fabrication", "steel", "metal", "plastics", "machining", "assembly", "production", "processing", "plant", "factory", "textiles", "materials", "components", "foundry", "mill", "works", "tech", "systems", "pharmaceutical", "chemical", "pharma"],
+        "bonus": 25,
+        "label": "🏭 Tier 1: Manufacturing/Industrial"
+    },
+    "TIER_1_LOGISTICS": {
+        "keywords": ["warehouse", "distribution", "logistics", "storage", "fulfillment", "moving", "freight", "supply", "industrial park", "terminal", "dock", "cargo", "transport", "industrial development"],
+        "bonus": 25,
+        "label": "📦 Tier 1: Warehousing/Storage"
+    },
+    "TIER_1_COLD_LOAD": {
+        "keywords": ["brewery", "food processing", "pickle", "dairy", "cold storage", "refrigerated", "refrigeration", "greenhouse", "agriculture", "produce", "packaging", "beverage", "bakery", "meat", "distillery"],
+        "bonus": 25,
+        "label": "❄️ Tier 1: Food/Beverage/Cold Load"
+    },
+    "TIER_2_AUTO": {
+        "keywords": ["auto", "dealership", "mobility", "fleet", "truck", "equipment", "service center", "repair facility", "collision", "motors", "ford", "chevy", "toyota", "honda", "leasing"],
+        "bonus": 15,
+        "label": "🚗 Tier 2: Auto/Equipment"
+    },
+    "TIER_2_NONPROFIT": {
+        "keywords": ["church", "temple", "mosque", "synagogue", "community center", "nonprofit", "youth center", "club", "charity", "ymca", "ywca", "salvation army", "mission"],
+        "bonus": 15,
+        "label": "⛪ Tier 2: Nonprofit/Community"
+    },
+    "EXCLUDE_DEPRIORITIZE": {
+        "keywords": ["apartment", "residential", "condo", "medical office", "strip mall", "boutique", "small retail", "high-rise", "primary school", "clinic", "dentist", "physician", "real_estate_agency"],
+        "penalty": -30,
+        "label": "🚫 De-prioritize"
+    }
+}
+
 
 class PlacesEnricher:
     """Enrich building data with Google Places API"""
@@ -374,15 +408,46 @@ def enrich_buildings(buildings: List[Dict], use_solar_api: bool = True, use_plac
     return enriched
 
 
+def identify_icp_bucket(building: Dict) -> Tuple[Optional[str], int]:
+    """Identify which ICP bucket a building falls into and return bonus/penalty"""
+    business_name = str(building.get('business_name', '')).lower()
+    business_types = str(building.get('business_types', '')).lower()
+    combined_text = f"{business_name} {business_types}"
+    
+    # Check EXCLUSIONS first
+    for kw in ICP_BUCKETS["EXCLUDE_DEPRIORITIZE"]["keywords"]:
+        if kw in combined_text:
+            return "EXCLUDE_DEPRIORITIZE", ICP_BUCKETS["EXCLUDE_DEPRIORITIZE"]["penalty"]
+            
+    # Check TIER 1
+    for bucket_id in ["TIER_1_INDUSTRIAL", "TIER_1_LOGISTICS", "TIER_1_COLD_LOAD"]:
+        for kw in ICP_BUCKETS[bucket_id]["keywords"]:
+            if kw in combined_text:
+                logger.debug(f"ICP Match: {bucket_id} (Keyword: {kw}) for {business_name}")
+                return bucket_id, ICP_BUCKETS[bucket_id]["bonus"]
+                
+    # Check TIER 2
+    for bucket_id in ["TIER_2_AUTO", "TIER_2_NONPROFIT"]:
+        for kw in ICP_BUCKETS[bucket_id]["keywords"]:
+            if kw in combined_text:
+                logger.debug(f"ICP Match: {bucket_id} (Keyword: {kw}) for {business_name}")
+                return bucket_id, ICP_BUCKETS[bucket_id]["bonus"]
+                
+    return None, 0
+
 def recalculate_scores(buildings: List[Dict]) -> List[Dict]:
-    """Recalculate scores with enriched data and proxy fallbacks"""
-    MIN_ROOF_SIZE_SQFT = 3000 # Lowered from 5000 to be more inclusive of urban commercial
+    """Recalculate scores with enriched data and ICP-based prioritization"""
+    MIN_ROOF_SIZE_SQFT = 3000
     SQM_TO_SQFT = 10.7639
-    PANEL_SIZE_SQFT = 17.5 # Average sqft per panel incl. spacing
+    PANEL_SIZE_SQFT = 17.5 
     
     for building in buildings:
         score = 0
         breakdown = {}
+        
+        # 0. ICP Identification
+        bucket_id, icp_bonus = identify_icp_bucket(building)
+        building['icp_bucket'] = ICP_BUCKETS[bucket_id]['label'] if bucket_id else "General Commercial"
         
         # Use Solar API area if available, otherwise use initial estimate
         solar_area_sqft = 0
@@ -397,13 +462,16 @@ def recalculate_scores(buildings: List[Dict]) -> List[Dict]:
             is_identified = business_name is not None and len(str(business_name)) > 0
             is_landmark = any(kw in str(business_name).lower() for kw in ['tower', 'plaza', 'building', 'center', 'square', 'landing', 'mall'])
             
-            if not is_landmark and not is_identified:
-                building['enriched_score'] = 12 # Baseline
+            # If it's a priority ICP, we override the size threshold (e.g. a small industrial fabricator)
+            is_priority = bucket_id is not None and bucket_id.startswith("TIER_1")
+
+            if not is_landmark and not is_identified and not is_priority:
+                building['enriched_score'] = 12
                 building['enriched_score_breakdown'] = {'disqualified': 'Small residential/non-commercial scale'}
                 building['ineligible'] = True
                 continue
             else:
-                logger.info(f"Preserving small-footprint lead due to ID: {business_name}")
+                logger.info(f"Preserving lead: {business_name} (Bucket: {bucket_id})")
                 building['ineligible'] = False
             
         building['ineligible'] = False
@@ -413,74 +481,69 @@ def recalculate_scores(buildings: List[Dict]) -> List[Dict]:
         is_proxy = False
         
         if not panels:
-            # PROXY CALCULATION: If Solar API failed but we have a footprint
-            # Estimate: Area / (Panel + Spacing) * 0.8 (Efficiency factor)
             panels = int((roof_area_sqft / PANEL_SIZE_SQFT) * 0.7)
             building['solar_max_panels'] = panels
-            building['solar_optimal_energy_kwh_year'] = int(panels * 400 * 1.25) # Approx 500kWh per panel
+            building['solar_optimal_energy_kwh_year'] = int(panels * 400 * 1.25)
             building['solar_proxy'] = True
             is_proxy = True
             
-        if panels >= 100:
+        if panels >= 250: # Large scale industrial
             solar_score = 40
-        elif panels >= 50:
+        elif panels >= 100:
             solar_score = 35
-        elif panels >= 25:
+        elif panels >= 50:
             solar_score = 25
         else:
             solar_score = 15
             
         if is_proxy:
-            solar_score = int(solar_score * 0.8) # Penalize score slightly for proxy confidence
+            solar_score = int(solar_score * 0.8)
             
         score += solar_score
         breakdown['solar_potential'] = solar_score
         
-        # 2. Financial viability (0-20 points)
+        # 2. ICP Bonus/Penalty (UP TO +25 or -30)
+        score += icp_bonus
+        if bucket_id:
+            breakdown['icp_relevance'] = icp_bonus
+        
+        # 3. Financial viability (0-15 points)
         if building.get('solar_financially_viable') or is_proxy:
-            # If proxy, we assume viability for high-capacity buildings
-            viability_score = 15 if not building.get('solar_financially_viable') else 20
+            viability_score = 10 if is_proxy else 15
             score += viability_score
             breakdown['financial_viability'] = viability_score
             
             # Bonus for quick payback
-            payback = building.get('solar_payback_years', 10) # Assume 10 for proxy
+            payback = building.get('solar_payback_years', 10)
             if payback < 7:
                 score += 5
                 breakdown['quick_payback_bonus'] = 5
         
-        # 3. Building type (0-15 points)
+        # 4. Building type (0-10 points)
         building_type = building.get('building_type', '')
         type_scores = {
-            'industrial': 15,
-            'warehouse': 14,
-            'commercial': 12,
-            'retail': 10,
-            'office': 10,
-            'mixed_use': 8
+            'industrial': 10,
+            'warehouse': 10,
+            'commercial': 8,
+            'retail': 5,
+            'office': 4,
+            'mixed_use': 3
         }
-        type_score = type_scores.get(building_type, 5)
+        type_score = type_scores.get(building_type, 2)
         score += type_score
         breakdown['building_type'] = type_score
         
-        # 4. Business presence (0-10 points)
+        # 5. Business presence & Rating (0-10 points)
         if building.get('business_name'):
-            score += 10
-            breakdown['business_identified'] = 10
+            score += 7
+            breakdown['business_identified'] = 7
             
-            # Bonus for good rating
             rating = building.get('business_rating')
             if rating and rating >= 4.0:
                 score += 3
                 breakdown['good_rating_bonus'] = 3
         
-        # 5. Data quality (0-15 points)
-        # Higher points for real Solar API data
-        data_score = 15 if not is_proxy else 8
-        score += data_score
-        breakdown['data_quality'] = data_score
-        
-        building['enriched_score'] = min(score, 100)
+        building['enriched_score'] = max(0, min(score, 100))
         building['enriched_score_breakdown'] = breakdown
     
     return buildings

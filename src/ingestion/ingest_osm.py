@@ -25,32 +25,64 @@ class OSMIngeestor:
         pass
         
     def query_by_bbox(self, south: float, west: float, north: float, east: float, limit: int = 100) -> List[Dict[str, Any]]:
-        """Query Overpass for buildings within a bounding box"""
-        logger.info(f"Querying OSM for buildings in bbox [{south}, {west}, {north}, {east}]...")
+        """Query Overpass for buildings within a bounding box using ICP filters"""
+        logger.info(f"Querying OSM for ICP targets in bbox [{south}, {west}, {north}, {east}]...")
+        
+        # Comprehensive ICP Filters
+        filters = [
+            'way["building"~"industrial|warehouse|factory|manufacturing|storage|cold_storage"]',
+            'way["building"~"church|chapel|cathedral|temple|synagogue|mosque"]',
+            'way["amenity"~"place_of_worship|community_centre"]',
+            'way["shop"~"car|car_repair|truck"]',
+            'relation["building"~"industrial|warehouse|factory|manufacturing|storage|cold_storage"]',
+            'relation["amenity"~"place_of_worship"]'
+        ]
+        
+        union_blocks = "\n".join([f"  {f}({south},{west},{north},{east});" for f in filters])
         
         query = f"""
-        [out:json][timeout:60];
+        [out:json][timeout:90];
         (
-          way["building"~"commercial|industrial|warehouse|retail|office"]({south},{west},{north},{east});
-          relation["building"~"commercial|industrial|warehouse|retail|office"]({south},{west},{north},{east});
+{union_blocks}
         );
         out center body;
         """
         return self._execute_query(query, limit)
 
-    def query_buildings(self, area_name: str, limit: int = 100) -> List[Dict[str, Any]]:
-        """Query Overpass by area name"""
-        logger.info(f"Querying OSM for buildings in {area_name}...")
+    def query_buildings(self, area_name: str, limit: int = 200, icp_type: str = "all") -> List[Dict[str, Any]]:
+        """Query Overpass by area name with specific ICP filters (restricted to NY)"""
+        logger.info(f"Querying OSM for {icp_type} leads in {area_name}, NY...")
+        
+        type_map = {
+            "industrial": '["building"~"industrial|warehouse|factory|manufacturing|storage"]',
+            "church": '["amenity"="place_of_worship"]',
+            "auto": '["shop"~"car|car_repair"]',
+            "all": '["building"~"industrial|warehouse|factory|commercial|office|retail|church|school"]'
+        }
+        
+        filter_str = type_map.get(icp_type, type_map["all"])
         
         query = f"""
-        [out:json][timeout:60];
-        area[name="{area_name}"]->.searchArea;
+        [out:json][timeout:90];
+        area["name"="{area_name}"]["addr:state"="NY"]->.searchArea;
         (
-          way["building"~"commercial|industrial|warehouse|retail|office"](area.searchArea);
-          relation["building"~"commercial|industrial|warehouse|retail|office"](area.searchArea);
+          way{filter_str}(area.searchArea);
+          relation{filter_str}(area.searchArea);
+          way["amenity"="place_of_worship"](area.searchArea);
         );
         out center body;
         """
+        # Fallback if state filter too restrictive
+        if icp_type == "all":
+             query = f"""
+            [out:json][timeout:90];
+            area["name"="{area_name}"]->.searchArea;
+            (
+              way{filter_str}(area.searchArea);
+              relation{filter_str}(area.searchArea);
+            );
+            out center body;
+            """
         return self._execute_query(query, limit)
 
     def _execute_query(self, query: str, limit: int) -> List[Dict[str, Any]]:

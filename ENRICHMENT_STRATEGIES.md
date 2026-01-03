@@ -61,22 +61,39 @@ This document tracks the different strategies implemented to identify and qualif
 
 ---
 
+## 🎯 Targeted ICP (Ideal Customer Profile) Strategy
+*   **Description**: Categorizes leads into specific industrial/commercial buckets to prioritize campaigns based on energy load and facility type.
+*   **Buckets**:
+    1.  **🏭 Tier 1: Manufacturing/Industrial**: Machining, assembly, steel, plastics, plants. (High kWh Load)
+    2.  **📦 Tier 1: Warehousing/Logistics**: Distribution centers, storage, freight, supply. (Large Flat Roofs)
+    3.  **❄️ Tier 1: Food/Beverage/Cold Load**: Breweries, cold storage, dairies, processing. (Constant High Load)
+    4.  **🚗 Tier 2: Auto/Equipment**: Dealerships, fleet services, repair centers. (EV Angle)
+    5.  **⛪ Tier 2: Nonprofits/Community**: Churches, youth centers, clubs. (Trust/Goodwill)
+*   **Exclusions**: Small medical clinics, multi-tenant high-rises, and residential complexes are de-prioritized to maximize ROI.
+
+---
+
 ## 🏗️ Building Qualification Strategies
 
 ### Strategy 1: Minimum Scale Filtering
 *   **Description**: Automatic disqualification of buildings below a certain industrial/commercial threshold.
-*   **Current Threshold**: **5,000 sq ft** minimum roof area.
-*   **Logic**: Uses Solar API `maxArrayAreaMeters2` if available (precise), falling back to estimated footprint from ingestion.
-*   **Outcome**: Buildings below 5,000 sq ft are marked `ineligible` and filtered from the dashboard to focus on high-value commercial installs.
+*   **Current Threshold**: **3,000 sq ft** minimum roof area (Reduced from 5k to catch priority ICPs).
+*   **Exception**: High-priority ICPs (Manufacturing/Logistics) or verified landmarks are preserved regardless of size.
 
 ---
 
-## 📈 Scoring Algorithm (Current Version)
+## 📈 Scoring Algorithm (The "Waterfall" Score)
 
-Leads are scored on a scale of 0-100 based on the following weights:
-1.  **Solar Capacity (0-40pts)**: Based on total panel count (100+ panels = max points).
-2.  **Financial Viability (0-20pts)**: Bonus for quick payback (<7 years).
-3.  **Building Type (0-15pts)**: Industrial and Warehouse prioritized.
-4.  **Business Presence (0-10pts)**: Verified tenant/company identified.
-5.  **Sunshine Hours (0-10pts)**: Regional irradiance metrics.
-6.  **Environmental Impact (0-5pts)**: Carbon offset potential.
+Leads are scored on a scale of 0-100 following a weighted analytical model:
+
+| Component | Max Points | Logic |
+| :--- | :--- | :--- |
+| **Solar Potential** | 40 pts | 250+ panels = Max. Incorporates proxy footprint math if API fails. |
+| **ICP Relevance** | 25 pts | Tier 1 = +25, Tier 2 = +15, Exclusions = -30. |
+| **Financial Viability** | 20 pts | +15 for viability, +5 bonus for <7yr payback. |
+| **Building Type** | 10 pts | Industrial/Warehouse (10) > Commercial (8) > Retail (5). |
+| **Business Data** | 10 pts | +7 for verified tenant, +3 for 4.0+ rating. |
+
+### Configuration Metrics:
+* **Proxy Conversion**: 17.5 sqft/panel @ 70% roof efficiency factor.
+* **Baseline Score**: 12 pts for non-priority buildings in the system.

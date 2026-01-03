@@ -80,11 +80,15 @@ class LocalStorage:
         
         # Auto-detect fieldnames if not provided
         if fieldnames is None:
-            fieldnames = list(data[0].keys())
+            # Collect all keys from all records to handle inconsistent dicts
+            all_keys = set()
+            for record in data:
+                all_keys.update(record.keys())
+            fieldnames = sorted(list(all_keys))
         
         try:
             with open(filepath, 'w', newline='') as f:
-                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction='ignore')
                 writer.writeheader()
                 writer.writerows(data)
             logger.info(f"Saved {len(data)} records to {filepath}")
