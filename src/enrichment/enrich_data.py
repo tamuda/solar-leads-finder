@@ -11,6 +11,10 @@ import requests
 from typing import Dict, List, Optional, Tuple
 from loguru import logger
 from tqdm import tqdm
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Add parent directories to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -18,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.storage.local_storage import local_storage
 
 # API Configuration
-GOOGLE_PLACES_API_KEY = "AIzaSyDfBxbg5XM4N90C_bFdGiskLYasSUMT7ek"
+GOOGLE_PLACES_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY", "YOUR_API_KEY_HERE")
 SOLAR_API_BASE = "https://solar.googleapis.com/v1"
 
 
@@ -29,45 +33,143 @@ class PlacesEnricher:
         self.api_key = api_key
         self.base_url = "https://maps.googleapis.com/maps/api/place"
     
-    def find_place(self, address: str, lat: float, lng: float) -> Optional[Dict]:
-        """Find place details using address and coordinates"""
+    def is_generic_name(self, name: str, address: str) -> bool:
+        """Check if the name is just a city, zip, or the address itself"""
+        if not name:
+            return True
         
-        # Try nearby search first (more accurate for businesses)
-        url = f"{self.base_url}/nearbysearch/json"
+        name_lower = name.lower()
+        # Common generic locality names
+        generic_markers = ['rochester', 'albany', 'syracuse', 'buffalo', 'new york', 'county']
+        if name_lower in generic_markers:
+            return True
+            
+        # Matches zip code pattern
+        if any(token.isdigit() and len(token) == 5 for token in name.split()):
+            return True
+            
+        # Matches start of address (e.g. "400 Andrews" matches "400 Andrews St")
+        addr_snippet = address.split(',')[0].lower()
+        if addr_snippet in name_lower or name_lower in addr_snippet:
+            return True
+            
+        return False
+
+    def get_base_address(self, address: str) -> str:
+        """Strip suite/unit/apartment numbers to find primary building record"""
+        # Simple extraction of the main street address
+        parts = address.split(',')
+        street_part = parts[0]
+        # Remove common unit markers
+        for marker in ['Suite', 'Ste', 'Unit', 'Apt', 'Apartment', 'Floor', 'Fl']:
+            if marker in street_part:
+                street_part = street_part.split(marker)[0].strip()
+        
+        return f"{street_part}, {','.join(parts[1:])}"
+
+    def get_coordinates(self, address: str) -> Optional[Tuple[float, float]]:
+        """Resolve missing lat/lng using Google Geocoding API"""
+        url = "https://maps.googleapis.com/maps/api/geocode/json"
         params = {
-            'location': f"{lat},{lng}",
-            'radius': 50,  # 50 meters
+            'address': address,
+            'key': self.api_key
+        }
+        try:
+            response = requests.get(url, params=params, timeout=10)
+            data = response.json()
+            if data.get('results'):
+                location = data['results'][0]['geometry']['location']
+                logger.info(f"Geocoding Success: {address} -> ({location['lat']}, {location['lng']})")
+                return (location['lat'], location['lng'])
+            return None
+        except Exception as e:
+            logger.error(f"Geocoding fallback error: {e}")
+            return None
+
+    def find_place(self, address: str, lat: float, lng: float) -> Optional[Dict]:
+        """
+        The "Ultimate Robust Waterfall" - 6-Stage Business Identification
+        Modified for Landmark Awareness and Entity Matching.
+        """
+        
+        # Strategy 0: Landmark Detection (e.g. "Midtown Plaza")
+        # -----------------------------------------------------------------
+        landmark_parts = address.split(',')[0]
+        if any(keyword in landmark_parts.lower() for keyword in ['plaza', 'tower', 'building', 'center', 'landing']):
+            find_url = f"{self.base_url}/findplacefromtext/json"
+            find_params = {
+                'input': landmark_parts,
+                'inputtype': 'textquery',
+                'fields': 'name,place_id,types,business_status,website,formatted_phone_number',
+                'locationbias': f'circle:50@{lat},{lng}',
+                'key': self.api_key
+            }
+            res = requests.get(find_url, params=find_params, timeout=10).json()
+            for cand in res.get('candidates', []):
+                if not self.is_generic_name(cand.get('name'), address):
+                    logger.info(f"Waterfall Stage 0 [Landmark] Success: '{cand.get('name')}'")
+                    return cand
+
+        # Strategy 1: Targeted findplacefromtext (Current Address)
+        # -----------------------------------------------------------------
+        find_url = f"{self.base_url}/findplacefromtext/json"
+        find_params = {
+            'input': address,
+            'inputtype': 'textquery',
+            'fields': 'name,place_id,types,business_status,website,formatted_phone_number',
+            'locationbias': f'point:{lat},{lng}',
             'key': self.api_key
         }
         
         try:
-            response = requests.get(url, params=params, timeout=10)
-            response.raise_for_status()
-            data = response.json()
+            res = requests.get(find_url, params=find_params, timeout=10).json()
+            for cand in res.get('candidates', []):
+                if not self.is_generic_name(cand.get('name'), address):
+                    logger.info(f"Waterfall Stage 1 [Precise] Success: '{cand.get('name')}'")
+                    return cand
             
-            if data.get('results'):
-                # Get the first result (closest)
-                place = data['results'][0]
-                place_id = place.get('place_id')
-                
-                # Get detailed information
-                if place_id:
-                    return self.get_place_details(place_id)
-                
-                return {
-                    'name': place.get('name'),
-                    'types': place.get('types', []),
-                    'rating': place.get('rating'),
-                    'user_ratings_total': place.get('user_ratings_total'),
-                    'business_status': place.get('business_status')
-                }
-            
+            # Strategy 2: Base Address Search (Unit Correction)
+            # -----------------------------------------------------------------
+            base_address = self.get_base_address(address).split(',')[0] # Try just the street part
+            find_params['input'] = f"businesses at {base_address}"
+            res = requests.get(find_url, params=find_params, timeout=10).json()
+            for cand in res.get('candidates', []):
+                if not self.is_generic_name(cand.get('name'), address):
+                    logger.info(f"Waterfall Stage 2 [Base Address Meta] Success: '{cand.get('name')}'")
+                    return cand
+
+            # Strategy 3: Aggressive Keyword textsearch ("companies at...")
+            # -----------------------------------------------------------------
+            text_url = f"{self.base_url}/textsearch/json"
+            text_params = {
+                'query': f"major tenant or business at {address}",
+                'location': f"{lat},{lng}",
+                'radius': 50,
+                'key': self.api_key
+            }
+            res = requests.get(text_url, params=text_params, timeout=10).json()
+            for result in res.get('results', []):
+                if not self.is_generic_name(result.get('name'), address):
+                    if any(t in result.get('types', []) for t in ['establishment', 'point_of_interest']):
+                        logger.info(f"Waterfall Stage 3 [Keyword Search] Success: '{result.get('name')}'")
+                        return self.get_place_details(result['place_id'])
+
+            # Strategy 4: Corporate/Entity textsearch ("Owner of {address}")
+            # -----------------------------------------------------------------
+            text_params['query'] = f"office building or headquarters at {address.split(',')[0]}"
+            res = requests.get(text_url, params=text_params, timeout=10).json()
+            for result in res.get('results', []):
+                name = result.get('name', '').lower()
+                if any(x in name for x in ['llc', 'corp', 'inc', 'tower', 'plaza', 'building']):
+                    logger.info(f"Waterfall Stage 4 [Property Entity] Success: '{result.get('name')}'")
+                    return self.get_place_details(result['place_id'])
+
             return None
             
         except Exception as e:
-            logger.error(f"Places API error: {e}")
+            logger.error(f"Waterfall Enrichment Error: {e}")
             return None
-    
+
     def get_place_details(self, place_id: str) -> Optional[Dict]:
         """Get detailed place information"""
         url = f"{self.base_url}/details/json"
@@ -199,9 +301,22 @@ def enrich_buildings(buildings: List[Dict], use_solar_api: bool = True, use_plac
         lng = building.get('lng')
         
         if not lat or not lng:
-            logger.warning(f"Skipping {building.get('address')} - no coordinates")
-            enriched.append(enriched_building)
-            continue
+            logger.info(f"Missing coordinates for {building.get('address')}. Attempting Geocoding Fallback...")
+            if places_enricher:
+                coords = places_enricher.get_coordinates(building.get('address', ''))
+                if coords:
+                    lat, lng = coords
+                    enriched_building['lat'] = lat
+                    enriched_building['lng'] = lng
+                    enriched_building['geocoded'] = True
+                else:
+                    logger.warning(f"Geocoding failed for {building.get('address')}. Skipping.")
+                    enriched.append(enriched_building)
+                    continue
+            else:
+                logger.warning(f"Skipping {building.get('address')} - no coordinates and geocoder disabled")
+                enriched.append(enriched_building)
+                continue
         
         # Enrich with Places API
         if places_enricher:
@@ -260,54 +375,77 @@ def enrich_buildings(buildings: List[Dict], use_solar_api: bool = True, use_plac
 
 
 def recalculate_scores(buildings: List[Dict]) -> List[Dict]:
-    """Recalculate scores with enriched data"""
-    MIN_ROOF_SIZE_SQFT = 5000
+    """Recalculate scores with enriched data and proxy fallbacks"""
+    MIN_ROOF_SIZE_SQFT = 3000 # Lowered from 5000 to be more inclusive of urban commercial
     SQM_TO_SQFT = 10.7639
+    PANEL_SIZE_SQFT = 17.5 # Average sqft per panel incl. spacing
     
     for building in buildings:
         score = 0
         breakdown = {}
         
-        # Check roof size - disqualify if < 5000 sq ft
         # Use Solar API area if available, otherwise use initial estimate
-        roof_area_sqft = 0
+        solar_area_sqft = 0
         if building.get('solar_max_area_m2'):
-            roof_area_sqft = building['solar_max_area_m2'] * SQM_TO_SQFT
-        else:
-            roof_area_sqft = building.get('estimated_roof_area', 0)
+            solar_area_sqft = building['solar_max_area_m2'] * SQM_TO_SQFT
+        
+        roof_area_sqft = solar_area_sqft or building.get('estimated_roof_area', 0)
             
         if roof_area_sqft < MIN_ROOF_SIZE_SQFT:
-            building['enriched_score'] = 0
-            building['enriched_score_breakdown'] = {'disqualified': 'Roof area below 5000 sq ft'}
-            building['ineligible'] = True
-            continue
+            # Check if it's a known landmark or has a verified business occupant
+            business_name = building.get('business_name')
+            is_identified = business_name is not None and len(str(business_name)) > 0
+            is_landmark = any(kw in str(business_name).lower() for kw in ['tower', 'plaza', 'building', 'center', 'square', 'landing', 'mall'])
+            
+            if not is_landmark and not is_identified:
+                building['enriched_score'] = 12 # Baseline
+                building['enriched_score_breakdown'] = {'disqualified': 'Small residential/non-commercial scale'}
+                building['ineligible'] = True
+                continue
+            else:
+                logger.info(f"Preserving small-footprint lead due to ID: {business_name}")
+                building['ineligible'] = False
             
         building['ineligible'] = False
         
-        # 1. Solar API data (0-40 points) - MOST IMPORTANT
-        if building.get('solar_max_panels'):
-            max_panels = building['solar_max_panels']
-            if max_panels >= 100:
-                solar_score = 40
-            elif max_panels >= 50:
-                solar_score = 35
-            elif max_panels >= 25:
-                solar_score = 30
-            elif max_panels >= 10:
-                solar_score = 20
-            else:
-                solar_score = 10
-            score += solar_score
-            breakdown['solar_potential'] = solar_score
+        # 1. Solar Potential (0-40 points)
+        panels = building.get('solar_max_panels')
+        is_proxy = False
+        
+        if not panels:
+            # PROXY CALCULATION: If Solar API failed but we have a footprint
+            # Estimate: Area / (Panel + Spacing) * 0.8 (Efficiency factor)
+            panels = int((roof_area_sqft / PANEL_SIZE_SQFT) * 0.7)
+            building['solar_max_panels'] = panels
+            building['solar_optimal_energy_kwh_year'] = int(panels * 400 * 1.25) # Approx 500kWh per panel
+            building['solar_proxy'] = True
+            is_proxy = True
+            
+        if panels >= 100:
+            solar_score = 40
+        elif panels >= 50:
+            solar_score = 35
+        elif panels >= 25:
+            solar_score = 25
+        else:
+            solar_score = 15
+            
+        if is_proxy:
+            solar_score = int(solar_score * 0.8) # Penalize score slightly for proxy confidence
+            
+        score += solar_score
+        breakdown['solar_potential'] = solar_score
         
         # 2. Financial viability (0-20 points)
-        if building.get('solar_financially_viable'):
-            score += 20
-            breakdown['financial_viability'] = 20
+        if building.get('solar_financially_viable') or is_proxy:
+            # If proxy, we assume viability for high-capacity buildings
+            viability_score = 15 if not building.get('solar_financially_viable') else 20
+            score += viability_score
+            breakdown['financial_viability'] = viability_score
             
             # Bonus for quick payback
-            payback = building.get('solar_payback_years', 999)
-            if payback and payback < 7:
+            payback = building.get('solar_payback_years', 10) # Assume 10 for proxy
+            if payback < 7:
                 score += 5
                 breakdown['quick_payback_bonus'] = 5
         
@@ -318,8 +456,8 @@ def recalculate_scores(buildings: List[Dict]) -> List[Dict]:
             'warehouse': 14,
             'commercial': 12,
             'retail': 10,
-            'office': 8,
-            'mixed_use': 6
+            'office': 10,
+            'mixed_use': 8
         }
         type_score = type_scores.get(building_type, 5)
         score += type_score
@@ -336,32 +474,13 @@ def recalculate_scores(buildings: List[Dict]) -> List[Dict]:
                 score += 3
                 breakdown['good_rating_bonus'] = 3
         
-        # 5. Sunshine hours (0-10 points)
-        sunshine = building.get('solar_sunshine_hours_year', 0)
-        if sunshine >= 2000:
-            sunshine_score = 10
-        elif sunshine >= 1500:
-            sunshine_score = 7
-        elif sunshine >= 1000:
-            sunshine_score = 5
-        else:
-            sunshine_score = 2
-        score += sunshine_score
-        breakdown['sunshine_hours'] = sunshine_score
+        # 5. Data quality (0-15 points)
+        # Higher points for real Solar API data
+        data_score = 15 if not is_proxy else 8
+        score += data_score
+        breakdown['data_quality'] = data_score
         
-        # 6. Environmental Impact (0-5 points)
-        # Higher offset potential = more points
-        offset = building.get('solar_carbon_offset_kg_mwh', 0)
-        if offset > 400:
-            score += 5
-            breakdown['carbon_offset_potential'] = 5
-        
-        # 7. Data quality (0-5 points)
-        if building.get('geocoded'):
-            score += 5
-            breakdown['geocoded'] = 5
-        
-        building['enriched_score'] = min(score, 100)  # Cap at 100
+        building['enriched_score'] = min(score, 100)
         building['enriched_score_breakdown'] = breakdown
     
     return buildings
