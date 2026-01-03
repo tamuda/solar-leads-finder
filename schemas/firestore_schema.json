@@ -1,0 +1,163 @@
+{
+  "collections": {
+    "raw_assessor_data": {
+      "description": "Raw property tax and assessor records from county sources",
+      "fields": {
+        "parcel_id": "string (indexed)",
+        "address": "string",
+        "street_number": "string",
+        "street_name": "string",
+        "city": "string",
+        "state": "string",
+        "zip_code": "string",
+        "owner_name": "string",
+        "owner_address": "string",
+        "property_class": "string",
+        "property_class_code": "string",
+        "land_area_sqft": "number",
+        "building_area_sqft": "number",
+        "year_built": "number",
+        "assessed_value": "number",
+        "market_value": "number",
+        "num_stories": "number",
+        "use_code": "string",
+        "county": "string (indexed)",
+        "ingestion_date": "timestamp",
+        "source_url": "string",
+        "raw_data": "map"
+      },
+      "indexes": [
+        "parcel_id",
+        "county",
+        "property_class"
+      ]
+    },
+    "raw_osm_buildings": {
+      "description": "OpenStreetMap building footprints and metadata",
+      "fields": {
+        "osm_id": "string (indexed)",
+        "osm_type": "string",
+        "geometry": "geopoint or string (GeoJSON)",
+        "geometry_wkt": "string",
+        "building_type": "string",
+        "area_sqm": "number",
+        "area_sqft": "number",
+        "perimeter": "number",
+        "address": "map",
+        "tags": "map",
+        "region": "string (indexed)",
+        "ingestion_date": "timestamp"
+      },
+      "indexes": [
+        "osm_id",
+        "region",
+        "building_type"
+      ]
+    },
+    "raw_business_data": {
+      "description": "Licensed business information and NAICS codes",
+      "fields": {
+        "business_id": "string (indexed)",
+        "business_name": "string",
+        "dba_name": "string",
+        "naics_code": "string (indexed)",
+        "naics_description": "string",
+        "address": "string",
+        "street_number": "string",
+        "street_name": "string",
+        "city": "string",
+        "state": "string",
+        "zip_code": "string",
+        "website": "string",
+        "phone": "string",
+        "license_type": "string",
+        "license_status": "string",
+        "employee_count_range": "string",
+        "annual_revenue_range": "string",
+        "ingestion_date": "timestamp",
+        "source": "string"
+      },
+      "indexes": [
+        "business_id",
+        "naics_code",
+        "city"
+      ]
+    },
+    "buildings": {
+      "description": "Canonical deduplicated building records with enriched data",
+      "fields": {
+        "building_id": "string (indexed, auto-generated UUID)",
+        "normalized_address": "string (indexed)",
+        "street_number": "string",
+        "street_name": "string",
+        "city": "string",
+        "state": "string",
+        "zip_code": "string",
+        "lat": "number (indexed)",
+        "lng": "number (indexed)",
+        "location": "geopoint",
+        "parcel_id": "string",
+        "osm_id": "string",
+        "owner_name": "string",
+        "owner_type": "string",
+        "is_owner_occupied": "boolean",
+        "building_type": "string (indexed)",
+        "property_class": "string",
+        "building_area_sqft": "number",
+        "land_area_sqft": "number",
+        "estimated_roof_area_sqft": "number (indexed)",
+        "num_stories": "number",
+        "year_built": "number",
+        "assessed_value": "number",
+        "market_value": "number",
+        "geometry": "string (GeoJSON)",
+        "business_id": "string",
+        "business_name": "string",
+        "naics_code": "string",
+        "naics_description": "string",
+        "website": "string",
+        "energy_use_category": "string",
+        "score": "number (indexed)",
+        "score_breakdown": "map",
+        "data_quality_score": "number",
+        "created_at": "timestamp",
+        "updated_at": "timestamp",
+        "sources": "array"
+      },
+      "indexes": [
+        "building_id",
+        "normalized_address",
+        "building_type",
+        "score DESC",
+        "estimated_roof_area_sqft DESC",
+        "city"
+      ]
+    },
+    "processing_logs": {
+      "description": "Logs of data processing runs",
+      "fields": {
+        "run_id": "string (indexed)",
+        "process_type": "string",
+        "start_time": "timestamp",
+        "end_time": "timestamp",
+        "status": "string",
+        "records_processed": "number",
+        "records_created": "number",
+        "records_updated": "number",
+        "errors": "array",
+        "parameters": "map"
+      },
+      "indexes": [
+        "run_id",
+        "process_type",
+        "start_time DESC"
+      ]
+    }
+  },
+  "notes": {
+    "geometry_storage": "For large geometries, store as WKT string or GeoJSON. For point locations, use Firestore geopoint type.",
+    "indexing": "Create composite indexes as needed for common queries",
+    "partitioning": "Consider partitioning large collections by region or date",
+    "security_rules": "Implement appropriate Firestore security rules for production"
+  }
+}
