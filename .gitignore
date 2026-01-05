@@ -48,6 +48,8 @@ data/raw/*
 data/output/*
 !data/raw/.gitkeep
 !data/raw/high_value_seeds.json
+!data/raw/enriched_buildings.csv
+!data/raw/discovery_history.json
 !data/output/.gitkeep
 
 # Logs

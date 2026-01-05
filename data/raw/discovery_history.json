@@ -1,0 +1,125 @@
+{
+  "searches": [
+    {
+      "key": "trucking terminals_Henrietta",
+      "date": "2026-01-02T21:57:53.780576",
+      "term": "trucking terminals",
+      "city": "Henrietta"
+    },
+    {
+      "key": "food processing plants_Tonawanda",
+      "date": "2026-01-02T21:57:53.780582",
+      "term": "food processing plants",
+      "city": "Tonawanda"
+    },
+    {
+      "key": "mega churches_Cheektowaga",
+      "date": "2026-01-02T21:57:53.780585",
+      "term": "mega churches",
+      "city": "Cheektowaga"
+    },
+    {
+      "key": "cold storage facilities_Rochester",
+      "date": "2026-01-02T21:57:53.780587",
+      "term": "cold storage facilities",
+      "city": "Rochester"
+    },
+    {
+      "key": "breweries_Buffalo",
+      "date": "2026-01-02T21:57:53.780589",
+      "term": "breweries",
+      "city": "Buffalo"
+    },
+    {
+      "key": "cold storage facilities_Tonawanda",
+      "date": "2026-01-03T09:21:42.606731",
+      "term": "cold storage facilities",
+      "city": "Tonawanda"
+    },
+    {
+      "key": "auto auction sites_Clay",
+      "date": "2026-01-03T09:21:42.606736",
+      "term": "auto auction sites",
+      "city": "Clay"
+    },
+    {
+      "key": "large churches_Rochester",
+      "date": "2026-01-03T09:21:42.606739",
+      "term": "large churches",
+      "city": "Rochester"
+    },
+    {
+      "key": "mega churches_Syracuse",
+      "date": "2026-01-03T09:21:42.606741",
+      "term": "mega churches",
+      "city": "Syracuse"
+    },
+    {
+      "key": "cold storage facilities_Clay",
+      "date": "2026-01-03T09:21:42.606743",
+      "term": "cold storage facilities",
+      "city": "Clay"
+    },
+    {
+      "key": "manufacturing plants_Buffalo",
+      "date": "2026-01-03T09:21:53.545830",
+      "term": "manufacturing plants",
+      "city": "Buffalo"
+    },
+    {
+      "key": "industrial parks_Syracuse",
+      "date": "2026-01-03T09:21:53.545835",
+      "term": "industrial parks",
+      "city": "Syracuse"
+    },
+    {
+      "key": "community centers_Rochester",
+      "date": "2026-01-03T09:21:53.545838",
+      "term": "community centers",
+      "city": "Rochester"
+    },
+    {
+      "key": "large warehouses_Henrietta",
+      "date": "2026-01-03T09:21:53.545844",
+      "term": "large warehouses",
+      "city": "Henrietta"
+    },
+    {
+      "key": "mega churches_Albany",
+      "date": "2026-01-03T09:21:53.545846",
+      "term": "mega churches",
+      "city": "Albany"
+    },
+    {
+      "key": "large churches_Tonawanda",
+      "date": "2026-01-03T10:11:19.757486",
+      "term": "large churches",
+      "city": "Tonawanda"
+    },
+    {
+      "key": "manufacturing plants_Henrietta",
+      "date": "2026-01-03T10:11:19.757493",
+      "term": "manufacturing plants",
+      "city": "Henrietta"
+    },
+    {
+      "key": "logistics hubs_Buffalo",
+      "date": "2026-01-03T10:11:19.757500",
+      "term": "logistics hubs",
+      "city": "Buffalo"
+    },
+    {
+      "key": "cold storage facilities_Syracuse",
+      "date": "2026-01-03T10:11:19.757503",
+      "term": "cold storage facilities",
+      "city": "Syracuse"
+    },
+    {
+      "key": "recreation complexes_Albany",
+      "date": "2026-01-03T10:11:19.757505",
+      "term": "recreation complexes",
+      "city": "Albany"
+    }
+  ],
+  "last_run": "2026-01-03T10:11:28.538673"
+}
